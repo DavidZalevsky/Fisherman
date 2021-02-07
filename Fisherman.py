@@ -29,12 +29,17 @@ STATE = "IDLE"
 #Thread Stopper
 stop_button = False
 
+
 #Stuff for mouse events
 state_left = win32api.GetKeyState(0x01)
 state_right = win32api.GetKeyState(0x02)
 
 #fish counters
 fish_count = 0
+
+total_time = 0
+
+total_time_start = 0
 
 bait_counter = 0
 
@@ -70,28 +75,21 @@ def get_new_spot():
 
 #Runs the casting function
 def cast_hook():
-    global STATE
+    global STATE,stop_button
     while 1:
-        if stop_button == False:
+        if (stop_button == False):
             if STATE == "CASTING" or STATE == "STARTED":
-                time.sleep(2.6)
+                time.sleep(1.6)
                 pyautogui.mouseUp()
                 x,y = get_new_spot()
                 pyautogui.moveTo(x,y,tween=pyautogui.linear,duration=0.2)
-                time.sleep(0.2)
                 pyautogui.mouseDown()
                 time.sleep(random.uniform(0.2,0.5))
                 pyautogui.mouseUp()
                 log_info(f"Casted towards:{x,y}",logger="Information")
-                time.sleep(2.5)
+                time.sleep(1.5)
                 STATE = "CAST"
-            elif STATE == "CAST":
-                time.sleep(20)
-                if STATE == "CAST":
-                    log_info(f"Seems to be stuck on cast. Recasting",logger="Information")
-                    STATE = "CASTING"
-                    pyautogui.mouseUp()
-                    cast_hook()
+                break
         else:
             break
 
@@ -104,7 +102,7 @@ def do_minigame():
         pyautogui.mouseDown()
         pyautogui.mouseUp()
         #Initial scan. Waits for bobber to appear
-        time.sleep(0.5)
+        time.sleep(0.15)
         valid,location,size = Detect_Bobber()
         if valid == "TRUE":
             fish_count += 1
@@ -112,7 +110,7 @@ def do_minigame():
             while 1:
                 valid,location,size = Detect_Bobber()
                 if valid == "TRUE":
-                    if location[0] < size / 2:
+                    if location[0] < size * 0.8: #Solving minigame is faster if we stick to the right side
                         pyautogui.mouseDown()
                     else:
                         pyautogui.mouseUp()
@@ -138,14 +136,13 @@ def generate_coords(sender,data):
         n = n+1
         temp = []
         log_info(f'[spot:{n}]|Press Spacebar over the spot you want',logger="Information")
-        time.sleep(1)
         while True:
-            a = win32api.GetKeyState(0x20)  
+            a = win32api.GetKeyState(0x20)
             if a != state_left:
-                state_left = a 
+                state_left = a
                 if a < 0:
                     break
-            time.sleep(0.001) 
+            time.sleep(0.001)
         x,y = pyautogui.position()
         temp.append(x)
         temp.append(y)
@@ -177,6 +174,7 @@ def Grab_Screen(sender,data):
 
 #Detects bobber in tracking zone using openCV
 def Detect_Bobber():
+    global STATE,hook_manager
     start_time = time.time()
     with mss.mss() as sct:
         base = numpy.array(sct.grab(screen_area))
@@ -188,18 +186,21 @@ def Detect_Bobber():
         bobber = cv2.cvtColor(bobber, cv2.COLOR_RGB2BGR)
         result = cv2.matchTemplate(base,bobber,cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-        if max_val > 0.5:
+        if max_val > 0.65:
             print(f"Bobber Found!. Match certainty:{max_val}")
             print("%s seconds to calculate" % (time.time() - start_time))
             return ["TRUE",max_loc,base.shape[1]]
         else:
             print(f"Bobber not found. Match certainty:{max_val}")
             print("%s seconds to calculate" % (time.time() - start_time))
+            hook_manager = threading.Thread(target=cast_hook)
+            hook_manager.start()
             return ["FALSE",max_loc,base.shape[1]]
 
 #Starts the bots threads
 def start(data,sender):
-    global max_volume,stop_button,STATE
+    global max_volume,stop_button,STATE,total_time_start
+    total_time_start = time.time()
     STATE = "STARTING"
     stop_button = False
     volume_manager = threading.Thread(target = check_volume)
@@ -245,7 +246,13 @@ def save_threshold(sender,data):
 def Setup_title():
     global bait_counter
     while 1:
-        set_main_window_title(f"Fisherman | Status:{STATE} | Fish Hits:{fish_count} |Current Volume:{max_volume} \ {total} |")
+        total_time = time.time()
+        TIME = round((total_time-total_time_start)/60)
+        if TIME == 0:
+            effeciency = 0
+        else:
+            effeciency = round((fish_count / ((total_time-total_time_start)/60)), 2)
+        set_main_window_title(f"Status: {STATE} | Fish Hits: {fish_count} | Running time: {TIME} minute| Fish/Minute: {effeciency}|Current Volume:{max_volume} \ {total} |")
         time.sleep(0.1)
         if bait_counter == 10:
             bait_counter = 0
