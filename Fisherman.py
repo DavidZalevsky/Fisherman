@@ -45,6 +45,12 @@ bait_counter = 0
 
 food_timer = 0
 
+potion_round = 0
+
+bait_flag = 0
+
+potion_flag = 0
+
 ##########################################################
 #
 #   These Functions handle bot state / minigame handling
@@ -80,6 +86,7 @@ def cast_hook():
         if (stop_button == False):
             if STATE == "CASTING" or STATE == "STARTED":
                 time.sleep(1.6)
+                bait_potion_counter()
                 pyautogui.mouseUp()
                 x,y = get_new_spot()
                 pyautogui.moveTo(x,y,tween=pyautogui.linear,duration=0.2)
@@ -102,7 +109,7 @@ def do_minigame():
         pyautogui.mouseDown()
         pyautogui.mouseUp()
         #Initial scan. Waits for bobber to appear
-        time.sleep(0.15)
+        time.sleep(0.2)
         valid,location,size = Detect_Bobber()
         if valid == "TRUE":
             fish_count += 1
@@ -121,6 +128,24 @@ def do_minigame():
                         break
         else:
             STATE = "CASTING"
+
+
+def bait_potion_counter():
+    global bait_counter,potion_round,TIME
+
+    print(potion_round,TIME)
+
+    if bait_counter == 10:
+        bait_counter = 0
+        log_info(f'Using bait...', logger="Information")
+        pyautogui.press("1")
+        time.sleep(1)
+
+    if (int(TIME / 30)) > potion_round:
+        potion_round = potion_round + 1
+        log_info(f'Using potion...', logger="Information")
+        pyautogui.press("2")
+        time.sleep(2)
 
 ##########################################################
 #
@@ -186,7 +211,7 @@ def Detect_Bobber():
         bobber = cv2.cvtColor(bobber, cv2.COLOR_RGB2BGR)
         result = cv2.matchTemplate(base,bobber,cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-        if max_val > 0.65:
+        if max_val > 0.6:
             print(f"Bobber Found!. Match certainty:{max_val}")
             print("%s seconds to calculate" % (time.time() - start_time))
             return ["TRUE",max_loc,base.shape[1]]
@@ -217,7 +242,6 @@ def start(data,sender):
             log_info(f'Hook Manager Started',logger="Information")
             log_info(f'Bot Started',logger="Information")
     STATE = "STARTED"
-    pyautogui.press("1")
 
 #Stops the bot and closes active threads
 def stop(data,sender):
@@ -244,7 +268,7 @@ def save_threshold(sender,data):
 
 #Title Tracking
 def Setup_title():
-    global bait_counter
+    global bait_counter,potion_round,TIME
     while 1:
         total_time = time.time()
         TIME = round((total_time-total_time_start)/60)
@@ -254,9 +278,7 @@ def Setup_title():
             effeciency = round((fish_count / ((total_time-total_time_start)/60)), 2)
         set_main_window_title(f"Status: {STATE} | Fish Hits: {fish_count} | Running time: {TIME} minute| Fish/Minute: {effeciency}|Current Volume:{max_volume} \ {total} |")
         time.sleep(0.1)
-        if bait_counter == 10:
-            bait_counter = 0
-            pyautogui.press("1")
+
 
 #Saves settings to settings.ini
 def save_settings(sender,data):
